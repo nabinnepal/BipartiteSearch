@@ -1,0 +1,305 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Drawing;
+using System.Collections;
+using System.Windows.Forms;
+
+namespace BipartiteProject
+{
+    public class DrawPanel : Panel
+    {
+        private int n1, n2;
+        private Point[] coordinatesLeft, coordinatesRight;
+        private bool[,] graph;
+        public Point P1;
+        public Point P2;
+        public Point P3;
+        public Color drawColor = Color.Black;
+        public bool mouseDown = false;
+        private int mid = -1;
+        private Point temp;
+        private ArrayList matching, parent;
+        private bool matchingDone = false;
+
+
+        public DrawPanel()
+        {
+            this.MouseMove += new MouseEventHandler(MyPanel_MouseMove);
+            this.MouseUp += new MouseEventHandler(MyPanel_MouseUp);
+            this.MouseDown += new MouseEventHandler(MyPanel_MouseDown);
+            coordinatesLeft = new Point[10];//left coordinates
+            coordinatesRight = new Point[10];//right coordinates
+            graph = new bool[10, 10];
+            matching = new ArrayList();//List that contains matching elements({{u0,v0},{u1,v1}...})
+            parent = new ArrayList();//required to find the path backward once free node is located
+        }
+        //called when free node is found
+        public void updateMatching(ArrayList p, String k)
+        {
+            bool found = false;
+            ArrayList matchingRow;
+            while (!found)
+            {
+                found = true;
+                for (int i = 0; i < p.Count; i++)
+                {
+                    ArrayList row = (ArrayList)p[i];
+                    if (row[0].ToString().Equals(k))
+                    {
+                        for (int j = 0; j < matching.Count; j++)
+                        {
+                            matchingRow = (ArrayList)matching[j];
+                            if (matchingRow[0].Equals(row[1]))
+                            {
+                                found = false;
+                                k = (String)matchingRow[1];
+                                matching.Remove(matchingRow);
+                            }
+                        }
+                        matchingRow = new ArrayList();
+                        matchingRow.Add(row[1]);
+                        matchingRow.Add(row[0]);
+                        matching.Add(matchingRow);
+                        break;
+                    }
+                }
+            }
+        }
+
+        public void findMatching()
+        {
+            List<Point> list = new List<Point>();
+            ArrayList visited;
+            int index = -1;
+            for (int i = 0; i < n1; i++)
+            {
+                visited = new ArrayList();
+                list.Add(coordinatesLeft[i]);
+                parent.Clear();
+                while (list.Count > 0)
+                {
+                    Point p = list[0];
+                    list.Remove(p);
+                    if (p.X < mid)//on the left coordinates
+                    {
+                        for (int k = 0; k < coordinatesLeft.Length; k++)
+                        {
+                            if (p == coordinatesLeft[k])
+                            {
+                                index = k;
+                                break;
+                            }
+                        }
+                        visited.Add("u" + index);
+                        for (int j = 0; j < n2; j++)
+                        {
+                            bool found = false;
+                            if (graph[index, j] && !visited.Contains("v" + j))
+                            {
+                                for (int k = 0; k < matching.Count; k++)
+                                {
+                                    ArrayList row = (ArrayList)matching[k];
+                                    if (row[1].Equals("v" + j))
+                                    {
+                                        list.Add(coordinatesRight[j]);
+                                        found = true;
+                                    }
+                                }
+                                ArrayList parentRow = new ArrayList();
+                                parentRow.Add("v" + j);
+                                parentRow.Add("u" + index);
+                                parent.Add(parentRow);
+                                if (!found)//free node
+                                {
+                                    updateMatching(parent, "v" + j);
+                                    //empty the list;
+                                    list.Clear();
+                                    break;
+                                }
+                            }
+                        }
+
+
+                    }
+                    else//on the right coordinates
+                    {
+                        for (int k = 0; k < coordinatesRight.Length; k++)
+                        {
+                            if (p == coordinatesRight[k])
+                            {
+                                index = k;
+                                break;
+                            }
+                        }
+                        visited.Add("v" + index);
+                        for (int j = 0; j < n1; j++)
+                        {
+                            if (graph[j, index] && !visited.Contains("u" + j))
+                            {
+                                for (int k = 0; k < matching.Count; k++)
+                                {
+                                    ArrayList row = (ArrayList)matching[k];
+                                    if (row[1].Equals("v" + index) && row[0].Equals("u" + j))
+                                    {
+                                        list.Add(coordinatesLeft[j]);
+                                        ArrayList parentRow = new ArrayList();
+                                        parentRow.Add("u" + j);
+                                        parentRow.Add("v" + index);
+                                        parent.Add(parentRow);
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+            }
+            matchingDone = true;
+            Invalidate();
+        }
+
+        public void paintMyComponent()
+        {
+            Graphics g = CreateGraphics();
+            Pen erasePen = new Pen(this.BackColor);
+            g.DrawLine(erasePen, P1, P2);
+            g.DrawLine(new Pen(Color.Black), P1.X, P1.Y, P3.X, P3.Y);
+
+        }
+        private void MyPanel_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (mouseDown)
+            {
+                P3.X = e.X;
+                P3.Y = e.Y;
+                paintMyComponent();
+                P2 = P3;
+            }
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics g = e.Graphics;
+            for (int i = 0; i < n1; i++)
+            {
+                for (int j = 0; j < n2; j++)
+                {
+                    if (graph[i, j])
+                    {
+                        g.DrawString("u" + i, new Font("Times New Roman", 12), Brushes.Black, coordinatesLeft[i].X - 15, coordinatesLeft[i].Y + 5);
+                        g.DrawString("v" + j, new Font("Times New Roman", 12), Brushes.Black, coordinatesRight[j].X + 5, coordinatesRight[j].Y + 5);
+                        g.DrawLine(new Pen(Color.Black), coordinatesLeft[i].X, coordinatesLeft[i].Y, coordinatesRight[j].X, coordinatesRight[j].Y);
+                    }
+                }
+            }
+            if (mid > 0)
+                g.DrawLine(new Pen(Color.Black), mid, 0, mid, this.Height);
+
+            if (matchingDone)
+            {
+                foreach (ArrayList matchingRow in matching)
+                {
+                    String left = (String)matchingRow[0];
+
+                    int l = Convert.ToInt16(left.Substring(1));
+                    String right = (String)matchingRow[1];
+                    int r = Convert.ToInt16(right.Substring(1));
+
+                    g.DrawLine(new Pen(Color.Red, 7.0f), coordinatesLeft[l].X, coordinatesLeft[l].Y, coordinatesRight[r].X, coordinatesRight[r].Y);
+
+                }
+            }
+
+        }
+        private void MyPanel_MouseDown(object sender, MouseEventArgs e)
+        {
+            mouseDown = true;
+            Point p = new Point(e.X, e.Y);
+            if (exists(p) == -1)
+            {
+                P2.X = P1.X = e.X;
+                P2.Y = P1.Y = e.Y;
+            }
+            else
+            {
+                P2.X = P1.X = temp.X;
+                P2.Y = P1.Y = temp.Y;
+            }
+        }
+        private void MyPanel_MouseUp(object sender, MouseEventArgs e)
+        {
+            mouseDown = false;
+            if (P1.X > P2.X)
+            {
+                Point p = P1;
+                P1 = P2;
+                P2 = p;
+            }
+            int i = exists(P1);
+            int j = exists(P2);
+            if (n1 == 0)//first line drawn
+            {
+
+                coordinatesLeft[n1] = P1;
+                coordinatesRight[n2] = P2;
+                graph[n1++, n2++] = true;
+                mid = (coordinatesLeft[0].X + coordinatesRight[0].X) / 2;
+            }
+            else
+            {
+                if ((P1.X > mid && P2.X > mid) || (P1.X < mid && P2.X < mid))
+                {
+                    MessageBox.Show("This will violate Bipartite Graph Property");
+                    Invalidate();
+                    return;
+                }
+                if (i == -1)
+                {
+                    coordinatesLeft[n1] = P1;
+                    i = n1++;
+
+                }
+                if (j == -1)
+                {
+                    coordinatesRight[n2] = P2;
+                    j = n2++;
+
+                }
+                graph[i, j] = true;
+            }
+            Invalidate();
+
+        }
+        private int exists(Point p)
+        {
+            for (int i = 0; i < n1; i++)
+            {
+                double distance = Math.Sqrt((p.X - coordinatesLeft[i].X) * (p.X - coordinatesLeft[i].X) + 
+                    (p.Y - coordinatesLeft[i].Y) * (p.Y - coordinatesLeft[i].Y));
+
+                if (distance < 5)
+                {
+                    temp = coordinatesLeft[i];
+                    return i;
+                }
+            }
+            for (int i = 0; i < n2; i++)
+            {
+                double distance = Math.Sqrt((p.X - coordinatesRight[i].X) * (p.X - coordinatesRight[i].X) + 
+                    (p.Y - coordinatesRight[i].Y) * (p.Y - coordinatesRight[i].Y));
+                
+                if (distance < 5)
+                {
+                    temp = coordinatesRight[i];
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+
+    }
+}
